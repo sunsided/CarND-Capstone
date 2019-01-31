@@ -1,4 +1,13 @@
-This is the project repo for the final project of the Udacity Self-Driving Car Nanodegree: Programming a Real Self-Driving Car. For more information about the project, see the project introduction [here](https://classroom.udacity.com/nanodegrees/nd013/parts/6047fe34-d93c-4f50-8336-b70ef10cb4b2/modules/e1a23b06-329a-4684-a717-ad476f0d8dff/lessons/462c933d-9f24-42d3-8bdc-a08a5fc866e4/concepts/5ab4b122-83e6-436d-850f-9f4d26627fd9).
+# CarND Capstone
+
+[![Udacity - Self-Driving Car NanoDegree](https://s3.amazonaws.com/udacity-sdc/github/shield-carnd.svg)](http://www.udacity.com/drive)
+
+This is the project repo for the final project of the Udacity Self-Driving Car Nanodegree: 
+Programming a Real Self-Driving Car. For more information about the project, see the project introduction [here](https://classroom.udacity.com/nanodegrees/nd013/parts/6047fe34-d93c-4f50-8336-b70ef10cb4b2/modules/e1a23b06-329a-4684-a717-ad476f0d8dff/lessons/462c933d-9f24-42d3-8bdc-a08a5fc866e4/concepts/5ab4b122-83e6-436d-850f-9f4d26627fd9).
+
+![](imgs/final-project-ros-graph-v2.png)
+
+## Installation
 
 Please use **one** of the two installation options, either native **or** docker installation.
 
@@ -13,11 +22,12 @@ Please use **one** of the two installation options, either native **or** docker 
   The Udacity provided virtual machine has ROS and Dataspeed DBW already installed, so you can skip the next two steps if you are using this.
 
 * Follow these instructions to install ROS
+  * [ROS Melodic](http://wiki.ros.org/melodic/Installation/Ubuntu) if you have Ubuntu 18.04.
   * [ROS Kinetic](http://wiki.ros.org/kinetic/Installation/Ubuntu) if you have Ubuntu 16.04.
   * [ROS Indigo](http://wiki.ros.org/indigo/Installation/Ubuntu) if you have Ubuntu 14.04.
 * [Dataspeed DBW](https://bitbucket.org/DataspeedInc/dbw_mkz_ros)
   * Use this option to install the SDK on a workstation that already has ROS installed: [One Line SDK Install (binary)](https://bitbucket.org/DataspeedInc/dbw_mkz_ros/src/81e63fcc335d7b64139d7482017d6a97b405e250/ROS_SETUP.md?fileviewer=file-view-default)
-* Download the [Udacity Simulator](https://github.com/udacity/CarND-Capstone/releases).
+* Download the [Udacity Simulator](https://github.com/sunsided/CarND-Capstone/releases).
 
 ### Docker Installation
 [Install Docker](https://docs.docker.com/engine/installation/)
@@ -57,7 +67,8 @@ roslaunch launch/styx.launch
 4. Run the simulator
 
 ### Real world testing
-1. Download [training bag](https://s3-us-west-1.amazonaws.com/udacity-selfdrivingcar/traffic_light_bag_file.zip) that was recorded on the Udacity self-driving car.
+
+1. Download [training bag](https://s3-us-west-1.amazonaws.com/udacity-selfdrivingcar/traffic_light_bag_file.zip) (see [Bags](http://wiki.ros.org/Bags)) that was recorded on the Udacity self-driving car.
 2. Unzip the file
 ```bash
 unzip traffic_light_bag_file.zip
@@ -72,3 +83,73 @@ cd CarND-Capstone/ros
 roslaunch launch/site.launch
 ```
 5. Confirm that traffic light detection works on real life images
+
+## Project layout
+
+The main project code can be found in `./ros/src`. This directory contains the following
+ROS packages:
+
+### `./ros/src/tl_detector/`
+
+This package contains the traffic light detection node: `tl_detector.py`. 
+This node takes in data from the `/image_color`, `/current_pose`, and `/base_waypoints` 
+topics and publishes the locations to stop for red traffic lights to the 
+`/traffic_waypoint` topic.
+
+![](imgs/tl-detector-ros-graph.png)
+
+The `/current_pose` topic provides the vehicle's current position, and 
+`/base_waypoints` provides a complete list of waypoints the car will be following.
+
+Traffic light detection should take place within `tl_detector.py`, whereas traffic light classification should take place within `../tl_detector/light_classification_model/tl_classfier.py`.
+
+### `./ros/src/waypoint_updater/`
+
+This package contains the waypoint updater node: `waypoint_updater.py`. 
+The purpose of this node is to update the target velocity property of each waypoint 
+based on traffic light and obstacle detection data. This node will subscribe to the 
+`/base_waypoints`, `/current_pose`, `/obstacle_waypoint`, and `/traffic_waypoint` topics, 
+and publish a list of waypoints ahead of the car with target velocities 
+to the `/final_waypoints` topic.
+
+![](imgs/waypoint-updater-ros-graph.png)
+
+### `./ros/src/twist_controller/`
+
+Carla is equipped with a drive-by-wire (dbw) system, meaning the throttle, brake,
+and steering have electronic control. This package contains the files that are
+responsible for control of the vehicle: the node `dbw_node.py` and the file
+`twist_controller.py`, along with a pid and lowpass filter that you can use in your 
+implementation. The `dbw_node` subscribes to the `/current_velocity` topic along with the 
+`/twist_cmd` topic to receive target linear and angular velocities.
+Additionally, this node will subscribe to `/vehicle/dbw_enabled`, which indicates if
+the car is under dbw or driver control. This node will publish throttle, brake, and
+steering commands to the `/vehicle/throttle_cmd`, `/vehicle/brake_cmd`,
+and `/vehicle/steering_cmd` topics.
+
+![](imgs/dbw-node-ros-graph.png)
+
+### Additional packages
+
+In addition to the above packages you will find the following, which are not necessary
+to change for the project. The `styx` and `styx_msgs` packages are used to provide a
+link between the simulator and ROS, and to provide custom ROS message types:
+
+#### `./ros/src/styx/`
+
+A package that contains a server for communicating with the simulator,
+and a bridge to translate and publish simulator messages to ROS topics.
+
+#### `./ros/src/styx_msgs/`
+
+A package which includes definitions of the custom ROS message types used in the project.
+
+#### `./ros/src/waypoint_loader/`
+
+A package which loads the static waypoint data and publishes to `/base_waypoints`.
+
+#### `./ros/src/waypoint_follower/`
+
+A package containing code from [Autoware](https://github.com/CPFL/Autoware)
+which subscribes to `/final_waypoints` and publishes target vehicle linear
+and angular velocities in the form of twist commands to the `/twist_cmd` topic.
