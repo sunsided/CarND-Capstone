@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 
 import rospy
+import numpy as np
 from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane, Waypoint
+from scipy.spatial import KDTree
 
 import math
 
@@ -33,19 +35,107 @@ class WaypointUpdater(object):
 
         # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
 
-
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
-        # TODO: Add other member variables you need below
+        self.pose = None
+        self.base_waypoints = None
+        self.waypoints_2d = None
+        self.waypoint_tree = None
 
-        rospy.spin()
+        self.loop()
+
+    def loop(self):
+        """
+        Run the node until rospy is shutting down, publishing
+        the next waypoints ahead of the car.
+        """
+        rate = rospy.Rate(50)
+        while not rospy.is_shutdown():
+            if self.pose and self.base_waypoints:
+                num_waypoins = rospy.get_param('~lookahead_wps', LOOKAHEAD_WPS)
+                closest_waypoint_idx = self.get_closest_waypoint_idx()
+                self.publish_waypoints(closest_waypoint_idx, N=num_waypoins)
+            rate.sleep()
+
+    def get_closest_waypoint_idx(self):
+        """
+        Obtains the index of the closest waypoint in front of the car
+        from the car's current position and the waypoint position Kd-Tree.
+        """
+        x = self.pose.pose.position.x
+        y = self.pose.pose.position.y
+
+        # Query the Kd-Tree for the closest position
+        # and obtain the (insertion order) index of the closest point.
+        query_result = self.waypoint_tree.query([x, y], k=1)
+        closest_idx = query_result[1]
+
+        # To check if closest waypoint is ahead or behind vehicle,
+        # we're going to compare the car's position against a hyperplane
+        # defined by the vector from the previous coordinate to the 
+        # closest one. If the car is in front of the hyperplane
+        # perpendicular to the coordinate vector, the closest waypoint
+        # is behind the car.
+        closest_coord = self.waypoints_2d[closest_idx]
+        prev_coord = self.waypoints_2d[closest_idx - 1]
+
+        # In order to determine whether the car's coordinate is in front
+        # of the hyperplane, we're going to check whether the vector
+        # from the previous to the current (closest) coordinate, as well as
+        # the vector of the closest coordinate to the car are pointing
+        # in the same direction. If they do, the car's in front.
+        # For an intuition, see imgs/hyperplane.jpg in the repo's root.
+        car_pos_vect = np.array([x, y])
+        closest_vect = np.array(closest_coord)
+        prev_vect = np.array(prev_coord)
+
+        # We're going to use the dot product, which, if positive,
+        # implies the same direction of both vectors relative to the hyperplane.
+        # (Note that the dot product is zero iff the vectors are perpendicular.)
+        val = np.dot(closest_vect - prev_vect, 
+                     car_pos_vect - closest_vect)
+
+        # If the closest coordinate is indeed behind the car,
+        # we simply pick the next (i.e. following) coordinate in the base list,
+        # while treating the list as a circular buffer.
+        if val > 0:
+            closest_idx = (closest_idx + 1) % len(self.waypoints_2d)
+        return closest_idx
+
+    def publish_waypoints(self, closest_idx, N):
+        """
+        Publishes the N closest waypoints in front of the car to the final_waypoints topic.
+        """
+        lane = Lane()
+        lane.header = self.base_waypoints.header
+        lane.waypoints = self.base_waypoints.waypoints[closest_idx:(closest_idx + N)]
+        self.final_waypoints_pub.publish(lane)
 
     def pose_cb(self, msg):
-        # TODO: Implement
+        """
+        Stores the car's current pose from the /current_pose topic.
+        """
+        self.pose = msg
         pass
 
+    @staticmethod
+    def waypoints_to_2d(waypoints):
+        """
+        Converts waypoints of the Lane to 2D coordinates.
+        """
+        return [[waypoint.pose.pose.position.x, waypoint.pose.pose.position.y] 
+                for waypoint in waypoints]
+
     def waypoints_cb(self, waypoints):
-        # TODO: Implement
+        """
+        Receives the map waypoints from the /base_waypoints topic
+        and converts them to a Kd-Tree for parsing.
+        """
+        # The /base_waypoints message is expected to be published exactly once.
+        self.base_waypoints = waypoints
+        if not self.waypoints_2d:
+            self.waypoints_2d = self.waypoints_to_2d(waypoints.waypoints)
+            self.waypoint_tree = KDTree(self.waypoints_2d)
         pass
 
     def traffic_cb(self, msg):
