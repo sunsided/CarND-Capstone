@@ -227,11 +227,11 @@ qtcreator-*
 CATKIN_IGNORE
 
 ### VisualStudioCode ###
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
+ros/.vscode/*
+!ros/.vscode/settings.json
+!ros/.vscode/tasks.json
+!ros/.vscode/launch.json
+!ros/.vscode/extensions.json
 
 ### VisualStudioCode Patch ###
 # Ignore all local history of files
