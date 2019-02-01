@@ -175,3 +175,99 @@ published by other nodes, it is suggested to complete the project in the followi
 4. **Waypoint Updater (Full):** Use `/traffic_waypoint` to change the waypoint target
    velocities before publishing to `/final_waypoints`. The car should now stop at red 
    traffic lights and move when they are green.
+
+
+## Topics and message types
+
+| Topic              | Message Type                | Notes                                                                                                                  |
+|--------------------|-----------------------------|------------------------------------------------------------------------------------------------------------------------|
+| `/base_waypoints`  | `styx_msgs/Lane`            | Waypoints as provided by a static `.csv` file.                                                                         |
+| `/current_pose`    | `geometry_msgs/PoseStamped` |  Current position of the vehicle, provided by the simulator or localization.                                           |
+| `/final_waypoints` | `styx_msgs/Lane`            | This is a subset of `/base_waypoints`. The first waypoint is the one in `/base_waypoints` which is closest to the car. |
+
+
+## Handling ROS
+
+If [direnv](https://direnv.net/) is installed and set up, the calls to
+`source devel/setup.bash` can be skipped in the described commands.
+
+From the `./ros` directory, run the following two commands to build the project
+and source the environment:
+
+```sh
+catkin_make
+```
+
+Start the ROS master in a separate terminal:
+
+```sh
+source devel/setup.bash
+roscore
+```
+
+Launch the system using `./run` (in the `./ros` subdirectory), or execute:
+
+```sh
+source devel/setup.bash
+roslaunch launch/styx.launch
+```
+
+In yet another terminal, source the environment again and obtain a topic list
+using `rostopic`:
+
+```sh
+source devel/setup.bash
+rostopic list
+```
+
+You can now inspect individual topics, e.g. `/final_waypoints`
+
+```sh
+rostopic info /final_waypoints
+```
+
+This should give us a description indicating `Type: styx_msgs/Lane`. Let's inspect the
+message `styx_msgs/Lane` using `rosmsg`:
+
+```sh
+rosmsg info styx_msgs/Lane
+```
+
+This should give us the following output:
+
+```
+std_msgs/Header header
+  uint32 seq
+  time stamp
+  string frame_id
+styx_msgs/Waypoint[] waypoints
+  geometry_msgs/PoseStamped pose
+    std_msgs/Header header
+      uint32 seq
+      time stamp
+      string frame_id
+    geometry_msgs/Pose pose
+      geometry_msgs/Point position
+        float64 x
+        float64 y
+        float64 z
+      geometry_msgs/Quaternion orientation
+        float64 x
+        float64 y
+        float64 z
+        float64 w
+  geometry_msgs/TwistStamped twist
+    std_msgs/Header header
+      uint32 seq
+      time stamp
+      string frame_id
+    geometry_msgs/Twist twist
+      geometry_msgs/Vector3 linear
+        float64 x
+        float64 y
+        float64 z
+      geometry_msgs/Vector3 angular
+        float64 x
+        float64 y
+        float64 z
+```
