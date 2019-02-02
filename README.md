@@ -271,3 +271,10 @@ styx_msgs/Waypoint[] waypoints
         float64 y
         float64 z
 ```
+
+Camera images are published on the `/image_color` topic
+and can be observed using e.g.
+
+```sh
+rqt_image_view /image_color
+```
