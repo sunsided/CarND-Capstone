@@ -1,0 +1,54 @@
+#!/usr/bin/env python
+
+import rospy
+from std_msgs.msg import Int32
+from geometry_msgs.msg import PoseStamped, Pose, PointStamped
+from styx_msgs.msg import TrafficLightArray, TrafficLight
+from styx_msgs.msg import Lane
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+import cv2
+import yaml
+import math
+
+
+class ImageRecorder:
+    def __init__(self):
+        rospy.init_node('tl_recorder')
+        self.pose = None
+        self.image = None
+        self.lights = None
+
+        config_string = rospy.get_param("/traffic_light_config")
+        self.config = yaml.load(config_string)
+
+        # TODO: Determine lane from waypoints and pose; look only at light related to lane.
+        self.sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
+        self.sub2 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
+
+        image_width = self.config['camera_info']['image_width']
+        image_height = self.config['camera_info']['image_height']
+        image_depth = 3
+
+        # According to the rospy documentation, the buffer size should be
+        # larger than (queue_size * the average message) size.
+        buffer_size_img = 2 * (image_width * image_height * image_depth)
+
+        self.sub3 = rospy.Subscriber('/image_color', Image, self.image_cb,
+                                     queue_size=1, buff_size=buffer_size_img)
+
+    def pose_cb(self, msg):
+        self.pose = msg
+
+    def traffic_cb(self, msg):
+        self.lights = msg.lights
+
+    def image_cb(self, msg):
+        self.image = msg
+        # TODO: Store the images.
+
+if __name__ == '__main__':
+    try:
+        ImageRecorder()
+    except rospy.ROSInterruptException:
+        rospy.logerr('Could not start image capture.')
