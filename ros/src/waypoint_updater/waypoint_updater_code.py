@@ -6,6 +6,7 @@ from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Int32
 from styx_msgs.msg import Lane, Waypoint
 from scipy.spatial import KDTree
+from waypoint_updater.msg import WaypointLocation
 
 import math
 
@@ -44,6 +45,7 @@ class WaypointUpdater(object):
         rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
+        self.closest_waypoint_pub = rospy.Publisher('closest_waypoint', WaypointLocation, queue_size=1)
 
         num_waypoins = rospy.get_param('~lookahead_wps', LOOKAHEAD_WPS)
         self.loop(num_waypoins)
@@ -113,8 +115,15 @@ class WaypointUpdater(object):
         Publishes the N closest waypoints in front of the car (with respect to
         the velocity required to handle traffic lights) to the final_waypoints topic.
         """
-        final_lane = self.generate_lane(N)
+        final_lane, closest_idx = self.generate_lane(N)
         self.final_waypoints_pub.publish(final_lane)
+
+        if self.pose and self.base_lane:
+            wp = WaypointLocation()
+            wp.header = self.pose.header
+            wp.index = closest_idx
+            wp.pose = self.base_lane.waypoints[closest_idx].pose.pose
+            self.closest_waypoint_pub.publish(wp)
 
     def generate_lane(self, N):
         closest_idx = self.get_closest_waypoint_idx()
@@ -128,7 +137,7 @@ class WaypointUpdater(object):
         else:
             lane.waypoints = self.decelerate_waypoints(base_waypoints, closest_idx)
 
-        return lane
+        return lane, closest_idx
 
     def decelerate_waypoints(self, waypoints, closest_idx):
         # Having immutable data is nice to begin with, but more importantly:

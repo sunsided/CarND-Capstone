@@ -179,12 +179,37 @@ published by other nodes, it is suggested to complete the project in the followi
 
 ## Topics and message types
 
-| Topic              | Message Type                | Notes                                                                                                                  |
-|--------------------|-----------------------------|------------------------------------------------------------------------------------------------------------------------|
-| `/base_waypoints`  | `styx_msgs/Lane`            | Waypoints as provided by a static `.csv` file.                                                                         |
-| `/current_pose`    | `geometry_msgs/PoseStamped` |  Current position of the vehicle, provided by the simulator or localization.                                           |
-| `/final_waypoints` | `styx_msgs/Lane`            | This is a subset of `/base_waypoints`. The first waypoint is the one in `/base_waypoints` which is closest to the car. |
+| Topic               | Message Type                | Notes                                                                                                                  |
+|---------------------|-----------------------------|------------------------------------------------------------------------------------------------------------------------|
+| `/base_waypoints`   | `styx_msgs/Lane`            | Waypoints as provided by a static `.csv` file.                                                                         |
+| `/current_pose`     | `geometry_msgs/PoseStamped` |  Current position of the vehicle, provided by the simulator or localization.                                           |
+| `/final_waypoints`  | `styx_msgs/Lane`            | This is a subset of `/base_waypoints`. The first waypoint is the one in `/base_waypoints` which is closest to the car. |
+| `/closest_waypoint` | `waypoint_updater/WaypointLocation`            | Provides the world coordinates of the closest waypoint and the index into the list published on `/base_waypoints`. |
 
+### Closest waypoint
+
+The `/closest_waypoint` topic contains the closest waypoint in world coordinates, 
+as well as its index into the list published on the `/base_waypoints` topic.
+
+```yaml
+header: 
+  seq: 1679
+  stamp: 
+    secs: 1549213758
+    nsecs: 328206062
+  frame_id: "/world"
+index: 347
+pose: 
+  position: 
+    x: 1202.23
+    y: 1187.59
+    z: 0.0
+  orientation: 
+    x: 0.0
+    y: 0.0
+    z: 0.023799069622
+    w: 0.999716762031
+```
 
 ## Handling ROS
 
