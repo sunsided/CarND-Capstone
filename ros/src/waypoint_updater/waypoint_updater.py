@@ -26,7 +26,7 @@ TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 
 LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this number
 MAX_DECEL = .5  # TODO: fix magic number
-
+USE_SIGMOIDAL_DECELERATION = False
 
 class WaypointUpdater(object):
     def __init__(self):
@@ -66,6 +66,10 @@ class WaypointUpdater(object):
         """
         x = self.pose.pose.position.x
         y = self.pose.pose.position.y
+
+        # Sanity check.
+        if not self.waypoint_tree:
+            return -1
 
         # Query the Kd-Tree for the closest position
         # and obtain the (insertion order) index of the closest point.
@@ -119,7 +123,7 @@ class WaypointUpdater(object):
 
         lane = Lane()
         # TODO: What about the header? (was: lane.header = self.base_lane.header)
-        if self.stopline_wp_idx == -1 or (self.stopline_wp_idx >= farthest_idx):
+        if self.stopline_wp_idx <= -1 or (self.stopline_wp_idx >= farthest_idx):
             lane.waypoints = base_waypoints
         else:
             lane.waypoints = self.decelerate_waypoints(base_waypoints, closest_idx)
@@ -136,13 +140,29 @@ class WaypointUpdater(object):
             p.pose = wp.pose
             
             # Two waypoints back from the line so front of car stops at the line.
-            # The "-2" offset
+            # The "-2" offset relates to the center of the car.
             stop_idx = max(self.stopline_wp_idx - closest_idx - 2, 0)
             dist = self.distance(waypoints, i, stop_idx)
 
-            # TODO: The square root is a pretty nasty approach (stops abruptly) - use a sinusoidal approach instead?
-            velocity = math.sqrt(2 * MAX_DECEL * dist)
-            if velocity < 1.:  # TODO: Fix magic number (lower velocity threshold)
+            # See "Brake Deceleration Profile.ipynb" notebook for choice of values.
+            threshold = 1.
+            if USE_SIGMOIDAL_DECELERATION:
+                threshold = 0.
+                alpha = wp.twist.twist.linear.x  # top velocity
+                beta = .4                        # controls steepness
+                gamma = 100.                     # counterweight for steepnes 
+                delta = -.1                      # offsets the measured distance
+                velocity = alpha / (1. + np.exp(-beta * (dist - delta)) * gamma*alpha)
+
+                # HACK: Nasty one: Right now, the car approaches stepwise, which looks very odd. Need to actually do the math for curve fitting here.
+                #       Especially, a minimum velocity needs to be taken into account.
+                velocity = max(1., velocity) if dist > 0. else 0.
+            else:
+                alpha = 0.125                    # Controls degree of deceleration (angle of the line)
+                velocity = alpha * dist
+            
+            # Suppress velocities that are too small.
+            if velocity <= threshold:
                 velocity = 0.
 
             p.twist.twist.linear.x = min(velocity, wp.twist.twist.linear.x)
