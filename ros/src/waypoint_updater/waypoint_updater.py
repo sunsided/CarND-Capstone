@@ -67,6 +67,10 @@ class WaypointUpdater(object):
         x = self.pose.pose.position.x
         y = self.pose.pose.position.y
 
+        # Sanity check.
+        if not self.waypoint_tree:
+            return -1
+
         # Query the Kd-Tree for the closest position
         # and obtain the (insertion order) index of the closest point.
         query_result = self.waypoint_tree.query([x, y], k=1)
