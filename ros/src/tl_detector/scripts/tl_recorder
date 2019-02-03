@@ -97,27 +97,49 @@ class ImageRecorder:
         car_wp_idx = self.closest_waypoint.index
         diff = len(self.waypoints.waypoints)
         closest_light = None
-        for i, light in enumerate(self.lights):
-            # Get the stop line waypoint index
+        closest_light_idx = -1
+        for _, light in enumerate(self.lights):
             temp_wp_idx = self.get_closest_waypoint(light.pose.pose.position.x, light.pose.pose.position.y)
-            # Find closest stop line waypoint index
             d = temp_wp_idx - car_wp_idx
             if d >= 0 and d < diff:
                 diff = d
                 closest_light = light
-                
-        #print(self.pose.pose.position.x, self.pose.pose.position.y, self.pose.pose.position.z)
-        #print(self.pose.pose.orientation.x, self.pose.pose.orientation.y, self.pose.pose.orientation.z, self.pose.pose.orientation.w)
-        print(closest_light)
-        return
+                closest_light_idx = temp_wp_idx
+
+        if not closest_light:
+            return
+
+        light_distance = self.distance(self.waypoints.waypoints, car_wp_idx, closest_light_idx)
+
+        # NOTE: This field only makes sense in the context of the simulator.
+        #       Especially considering that we wouldn't be able to look around a corner.
+        light_visible = 1 if (20 < light_distance < 200) else 0
+
+        values = (file_name,
+                  light_visible,
+                  closest_light.state,
+                  light_distance,
+                  self.pose.pose.position.x,
+                  self.pose.pose.position.y,
+                  self.pose.pose.position.z,
+                  self.pose.pose.orientation.x,
+                  self.pose.pose.orientation.y,
+                  self.pose.pose.orientation.z,
+                  self.pose.pose.orientation.w,
+                  closest_light.pose.pose.position.x,
+                  closest_light.pose.pose.position.y,
+                  closest_light.pose.pose.position.z,
+                  closest_light.pose.pose.orientation.x,
+                  closest_light.pose.pose.orientation.y,
+                  closest_light.pose.pose.orientation.z,
+                  closest_light.pose.pose.orientation.w)
+        values = ','.join(str(v) for v in values)
 
         image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
 
         cv2.imwrite(os.path.join(self.storage_dir, file_name), image)
-        self.index_fp.write(file_name + '\n')
+        self.index_fp.write(values + '\n')
         self.index_fp.flush()
-
-        print(file_name)
 
     @staticmethod
     def waypoints_to_2d(waypoints):
@@ -149,6 +171,15 @@ class ImageRecorder:
         query_result = self.waypoint_tree.query([x, y], k=1)
         closest_idx = query_result[1]
         return closest_idx
+
+    def distance(self, waypoints, wp1, wp2):
+        dist = 0
+        def dl(a, b): 
+            return math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2  + (a.z-b.z)**2)
+        for i in range(wp1, wp2+1):
+            dist += dl(waypoints[wp1].pose.pose.position, waypoints[i].pose.pose.position)
+            wp1 = i
+        return dist
 
 if __name__ == '__main__':
     try:

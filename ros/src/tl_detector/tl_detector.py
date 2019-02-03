@@ -62,6 +62,12 @@ class TLDetector(object):
         Stores the car's current pose from the /current_pose topic.
         """
         self.pose = msg
+    
+    def closest_waypoint_cb(self, waypoint):
+        """
+        Receives the closest waypoints from the /closest_waypoints topic.
+        """
+        self.closest_waypoint = waypoint
 
     @staticmethod
     def waypoints_to_2d(waypoints):
@@ -70,12 +76,6 @@ class TLDetector(object):
         """
         return [[waypoint.pose.pose.position.x, waypoint.pose.pose.position.y] 
                 for waypoint in waypoints]
-    
-    def closest_waypoint_cb(self, waypoint):
-        """
-        Receives the closest waypoints from the /closest_waypoints topic.
-        """
-        self.closest_waypoint = waypoint
 
     def waypoints_cb(self, waypoints):
         """
@@ -132,6 +132,9 @@ class TLDetector(object):
             int: index of the closest waypoint in self.waypoints
 
         """
+        if not self.waypoint_tree:
+            return -1
+
         # Query the Kd-Tree for the closest position
         # and obtain the (insertion order) index of the closest point.
         query_result = self.waypoint_tree.query([x, y], k=1)
