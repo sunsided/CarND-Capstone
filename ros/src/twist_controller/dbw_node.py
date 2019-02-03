@@ -108,6 +108,19 @@ class DBWNode(object):
         self.current_vel = msg.twist.linear.x
 
     def publish(self, throttle, brake, steer):
+        # Either publish throttle or brake commands, but never both.
+        # This is not quite correct, as there are situation where we might want
+        # to simultaneously break and speed up, such as when starting on a hill.
+        # For the purpose of the simulator though, only one of them makes sense.
+        if brake > 0.:
+            throttle = 0
+
+        bcmd = BrakeCmd()
+        bcmd.enable = True
+        bcmd.pedal_cmd_type = BrakeCmd.CMD_TORQUE
+        bcmd.pedal_cmd = brake
+        self.brake_pub.publish(bcmd)
+        
         tcmd = ThrottleCmd()
         tcmd.enable = True
         tcmd.pedal_cmd_type = ThrottleCmd.CMD_PERCENT
@@ -118,12 +131,6 @@ class DBWNode(object):
         scmd.enable = True
         scmd.steering_wheel_angle_cmd = steer
         self.steer_pub.publish(scmd)
-
-        bcmd = BrakeCmd()
-        bcmd.enable = True
-        bcmd.pedal_cmd_type = BrakeCmd.CMD_TORQUE
-        bcmd.pedal_cmd = brake
-        self.brake_pub.publish(bcmd)
 
 
 if __name__ == '__main__':
