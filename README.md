@@ -188,7 +188,7 @@ published by other nodes, it is suggested to complete the project in the followi
 
 ### Closest waypoint
 
-The `/closest_waypoint` topic contains the closest waypoint in world coordinates, 
+The `/closest_waypoint` topic publishes the closest waypoint in world coordinates,
 as well as its index into the list published on the `/base_waypoints` topic.
 
 ```yaml
@@ -209,6 +209,12 @@ pose:
     y: 0.0
     z: 0.023799069622
     w: 0.999716762031
+```
+
+To see it in action, run
+
+```sh
+rostopic echo /closest_waypoint
 ```
 
 ## Handling ROS
