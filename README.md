@@ -315,3 +315,16 @@ To see the output of the traffic light detection module, run
 ```sh
 rostopic echo /traffic_waypoint
 ```
+
+## Capturing camera images
+
+Camera images are published on the `/image_color` topic. The `tl_recorder` script
+in the `tl_detector` package captures these images and stores them to disk.
+
+To run the script, issue
+
+```sh
+rosrun tl_detector tl_recorder
+```
+
+on a shell while both simulator and system are running and camera input is enabled in the simulator.
