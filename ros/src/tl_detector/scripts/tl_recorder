@@ -1,0 +1,188 @@
+#!/usr/bin/env python
+
+import os
+import rospy
+from std_msgs.msg import Int32
+from geometry_msgs.msg import PoseStamped, Pose, PointStamped
+from styx_msgs.msg import TrafficLightArray, TrafficLight
+from styx_msgs.msg import Lane
+from waypoint_updater.msg import WaypointLocation
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+from scipy.spatial import KDTree
+import numpy as np
+import cv2
+import yaml
+import math
+import atexit
+
+LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this number
+
+
+class ImageRecorder:
+    def __init__(self):
+        rospy.init_node('tl_recorder')
+        self.pose = None
+        self.image = self.previous_image = None
+        self.lights = None
+        self.closest_waypoint = None
+        self.waypoints = self.waypoints_2d = self.waypoint_tree = None
+        self.bridge = CvBridge()
+
+        self.storage_dir = 'tl_recorder_images'
+        if not os.path.exists(self.storage_dir):
+            os.makedirs(self.storage_dir)
+
+        self.index_file_path = os.path.join(self.storage_dir, 'index.csv')
+        
+        self.index_fp = None
+        atexit.register(self.close_file)
+        self.index_fp = open(self.index_file_path, 'a')
+
+        self.lookahead_wps = rospy.get_param("~lookahead_wps", LOOKAHEAD_WPS)
+
+        config_string = rospy.get_param("/traffic_light_config")
+        self.config = yaml.load(config_string)
+
+        # TODO: Determine lane from waypoints and pose; look only at light related to lane.
+        rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
+        rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
+        rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
+        rospy.Subscriber('/closest_waypoint', WaypointLocation, self.closest_waypoint_cb)
+
+        image_width = self.config['camera_info']['image_width']
+        image_height = self.config['camera_info']['image_height']
+        image_depth = 3
+
+        # According to the rospy documentation, the buffer size should be
+        # larger than (queue_size * the average message) size.
+        buffer_size_img = 2 * (image_width * image_height * image_depth)
+
+        rospy.Subscriber('/image_color', Image, self.image_cb,
+                         queue_size=1, buff_size=buffer_size_img)
+
+        rospy.spin()
+
+    def close_file(self):
+        if not self.index_fp:
+            return
+        self.index_fp.close()
+
+    def pose_cb(self, msg):
+        self.pose = msg
+
+    def closest_waypoint_cb(self, msg):
+        self.closest_waypoint = msg
+
+    def traffic_cb(self, msg):
+        self.lights = msg.lights
+
+    def image_cb(self, msg):
+        file_name = str(rospy.get_time()).replace('.', '_') + '.jpg'
+
+        # Reduce the number of images where possible.
+        # This doesn't seem to work entirely as intended (since the images in the simulator do change
+        # even though the simulation is standing still; possibly due to graphics issues such as z-fighting).
+        # In any case, ti keeps the number of images down a bit.
+        self.image = msg
+        if self.previous_image and np.array_equal(msg.data, self.previous_image.data):
+            return
+        self.previous_image = self.image
+        
+        # TODO: Store the images.
+        if None in (self.pose, self.closest_waypoint, self.lights, self.waypoints):
+            return
+
+        # Determine the closest traffic light in front of the car.
+        car_wp_idx = self.closest_waypoint.index
+        diff = len(self.waypoints.waypoints)
+        closest_light = None
+        closest_light_idx = -1
+        for _, light in enumerate(self.lights):
+            temp_wp_idx = self.get_closest_waypoint(light.pose.pose.position.x, light.pose.pose.position.y)
+            d = temp_wp_idx - car_wp_idx
+            if d >= 0 and d < diff:
+                diff = d
+                closest_light = light
+                closest_light_idx = temp_wp_idx
+
+        if not closest_light:
+            return
+
+        light_distance = self.distance(self.waypoints.waypoints, car_wp_idx, closest_light_idx)
+
+        # NOTE: This field only makes sense in the context of the simulator.
+        #       Especially considering that we wouldn't be able to look around a corner.
+        light_visible = 1 if (20 < light_distance < 200) else 0
+
+        values = (file_name,
+                  light_visible,
+                  closest_light.state,
+                  light_distance,
+                  self.pose.pose.position.x,
+                  self.pose.pose.position.y,
+                  self.pose.pose.position.z,
+                  self.pose.pose.orientation.x,
+                  self.pose.pose.orientation.y,
+                  self.pose.pose.orientation.z,
+                  self.pose.pose.orientation.w,
+                  closest_light.pose.pose.position.x,
+                  closest_light.pose.pose.position.y,
+                  closest_light.pose.pose.position.z,
+                  closest_light.pose.pose.orientation.x,
+                  closest_light.pose.pose.orientation.y,
+                  closest_light.pose.pose.orientation.z,
+                  closest_light.pose.pose.orientation.w)
+        values = ','.join(str(v) for v in values)
+
+        image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+
+        cv2.imwrite(os.path.join(self.storage_dir, file_name), image)
+        self.index_fp.write(values + '\n')
+        self.index_fp.flush()
+
+    @staticmethod
+    def waypoints_to_2d(waypoints):
+        """
+        Converts waypoints of the Lane to 2D coordinates.
+        """
+        return [[waypoint.pose.pose.position.x, waypoint.pose.pose.position.y] 
+                for waypoint in waypoints]
+    
+    def waypoints_cb(self, waypoints):
+        """
+        Receives the map waypoints from the /base_waypoints topic
+        and converts them to a Kd-Tree for parsing.
+
+        Although the current waypoint can be obtained from /closest_waypoint,
+        we still need this method to fetch all traffic lights.
+        """
+        self.waypoints = waypoints
+        if not self.waypoints_2d:
+            self.waypoints_2d = self.waypoints_to_2d(waypoints.waypoints)
+            self.waypoint_tree = KDTree(self.waypoints_2d)
+
+    def get_closest_waypoint(self, x, y):
+        if not self.waypoint_tree:
+            return -1
+
+        # Query the Kd-Tree for the closest position
+        # and obtain the (insertion order) index of the closest point.
+        query_result = self.waypoint_tree.query([x, y], k=1)
+        closest_idx = query_result[1]
+        return closest_idx
+
+    def distance(self, waypoints, wp1, wp2):
+        dist = 0
+        def dl(a, b): 
+            return math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2  + (a.z-b.z)**2)
+        for i in range(wp1, wp2+1):
+            dist += dl(waypoints[wp1].pose.pose.position, waypoints[i].pose.pose.position)
+            wp1 = i
+        return dist
+
+if __name__ == '__main__':
+    try:
+        ImageRecorder()
+    except rospy.ROSInterruptException:
+        rospy.logerr('Could not start image capturing.')

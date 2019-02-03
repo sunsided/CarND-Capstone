@@ -188,7 +188,7 @@ published by other nodes, it is suggested to complete the project in the followi
 
 ### Closest waypoint
 
-The `/closest_waypoint` topic contains the closest waypoint in world coordinates, 
+The `/closest_waypoint` topic publishes the closest waypoint in world coordinates,
 as well as its index into the list published on the `/base_waypoints` topic.
 
 ```yaml
@@ -209,6 +209,12 @@ pose:
     y: 0.0
     z: 0.023799069622
     w: 0.999716762031
+```
+
+To see it in action, run
+
+```sh
+rostopic echo /closest_waypoint
 ```
 
 ## Handling ROS
@@ -309,3 +315,16 @@ To see the output of the traffic light detection module, run
 ```sh
 rostopic echo /traffic_waypoint
 ```
+
+## Capturing camera images
+
+Camera images are published on the `/image_color` topic. The `tl_recorder` script
+in the `tl_detector` package captures these images and stores them to disk.
+
+To run the script, issue
+
+```sh
+rosrun tl_detector tl_recorder
+```
+
+on a shell while both simulator and system are running and camera input is enabled in the simulator.
