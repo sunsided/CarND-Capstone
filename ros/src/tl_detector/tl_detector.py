@@ -26,6 +26,21 @@ class TLDetector(object):
         self.waypoint_tree = None
         self.camera_image = None
         self.lights = []
+        
+        self.bridge = CvBridge()
+        self.light_classifier = TLClassifier()
+        self.listener = tf.TransformListener()
+
+        self.state = TrafficLight.UNKNOWN
+        self.last_state = TrafficLight.UNKNOWN
+        self.last_wp = -1
+        self.state_count = 0
+
+        self.predicting = False
+        self.previous_prediction = TrafficLight.UNKNOWN
+
+        config_string = rospy.get_param("/traffic_light_config")
+        self.config = yaml.load(config_string)
 
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
@@ -41,19 +56,7 @@ class TLDetector(object):
         rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
         rospy.Subscriber('/image_color', Image, self.image_cb)
 
-        config_string = rospy.get_param("/traffic_light_config")
-        self.config = yaml.load(config_string)
-
         self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
-
-        self.bridge = CvBridge()
-        self.light_classifier = TLClassifier()
-        self.listener = tf.TransformListener()
-
-        self.state = TrafficLight.UNKNOWN
-        self.last_state = TrafficLight.UNKNOWN
-        self.last_wp = -1
-        self.state_count = 0
 
         rospy.spin()
 
@@ -153,16 +156,22 @@ class TLDetector(object):
         """
 
         # TODO: TEST SOLUTION ONLY, write actual classifier!
-        return light.state
+        # return light.state
 
         if not self.has_image:
             self.prev_light_loc = None
             return False
 
+        if self.predicting:
+            return self.previous_prediction
+
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
 
         #Get classification
-        return self.light_classifier.get_classification(cv_image)
+        self.predicting = True
+        self.previous_prediction = self.light_classifier.get_classification(cv_image)
+        self.predicting = False
+        return self.previous_prediction
 
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
@@ -178,7 +187,7 @@ class TLDetector(object):
 
         # List of positions that correspond to the line to stop in front of for a given intersection
         stop_line_positions = self.config['stop_line_positions']
-        if self.pose and self.closest_waypoint:
+        if self.pose and self.closest_waypoint and self.waypoints:
             car_wp_idx = self.closest_waypoint.index
 
             # TODO: Find the closest visible traffic light (if one exists)
